@@ -112,7 +112,7 @@ const CONFIG = {
   pestanas: ["AUDITORIA","GGTTD","FF"],     // pestañas del Sheet que se suman
   gids: {AUDITORIA:"", GGTTD:"", FF:""},   // opcional: número gid de cada pestaña (método más confiable)
   modo: "valores",                        // el total es la suma de la columna L
-  colNombre: 1, colValor: 11,  // B = Nombre, L = Valor aportación (si la columna L tiene dato, ya aportó)
+  colNombre: 1, colValor: 11, colPago: 11, // B = Nombre. Si la columna L (colPago) tiene dato, ya aportó. El monto se suma de la columna con título "Valor/Aportación" (si no la encuentra, usa L)
   refrescarSeg: 30
 };
 /* ================================================= */
@@ -197,9 +197,9 @@ async function load(){
   tabs.forEach(rows=>{
     const hd=(rows[0]||[]).map(x=>norm(x));
     const fi=(re,d)=>{const i=hd.findIndex(h=>re.test(h));return i>=0?i:d};
-    const cN=fi(/nombre/,CONFIG.colNombre), cV=CONFIG.colValor; // L fija en todas las pestañas
+    const cN=fi(/nombre/,CONFIG.colNombre), cV=fi(/valor|aportaci/,CONFIG.colValor), cL=CONFIG.colPago;
     rows.slice(1).forEach(r=>{
-      const nm=String(r[cN]||"").trim(), pago=String(r[cV]||"").trim();
+      const nm=String(r[cN]||"").trim(), pago=String(r[cL]||"").trim();
       if(!nm||!pago) return;
       cnt++; list.push(titleCase(nm)); val+=num(r[cV]);
     });
