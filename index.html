@@ -110,6 +110,7 @@ const CONFIG = {
   limite: "2026-11-16T19:00:00-05:00",    // lunes 16 nov, 19:00 (hora de Ecuador)
   sheetXlsxUrl: "https://docs.google.com/spreadsheets/d/e/2PACX-1vR0qZVSdfNARgvSOSfZOCq4-laF1moGmlwZsjzLzZ54Xehd8_Xox6dy0jbCbyJaqGiOAlgxK5TPHINH/pub?output=xlsx",
   pestanas: ["AUDITORIA","GGTTD","FF"],     // pestañas del Sheet que se suman
+  gids: {AUDITORIA:"", GGTTD:"", FF:""},   // opcional: número gid de cada pestaña (método más confiable)
   modo: "valores",                        // el total es la suma de la columna L
   colNombre: 1, colValor: 11,  // B = Nombre, L = Valor aportación (si la columna L tiene dato, ya aportó)
   refrescarSeg: 30
@@ -168,19 +169,30 @@ async function getWorkbook(){
   }
   throw last;
 }
+async function getTabs(){
+  const g=CONFIG.gids||{}, base=CONFIG.sheetXlsxUrl.split("?")[0];
+  if(CONFIG.pestanas.every(p=>g[p])){
+    return Promise.all(CONFIG.pestanas.map(async p=>{
+      const url=base+"?gid="+g[p]+"&single=true&output=csv"; let last;
+      for(const u of [url,url+"&t="+Date.now()]){
+        try{ const r=await fetch(u,{cache:"no-store"}); if(!r.ok) throw new Error("HTTP "+r.status); return parseCSV(await r.text()); }catch(e){ last=e; }
+      }
+      throw new Error(p+": "+last.message);
+    }));
+  }
+  const wb=await getWorkbook(), byName={};
+  wb.SheetNames.forEach(n=>byName[norm(n)]=n);
+  return CONFIG.pestanas.map(p=>{
+    const real=byName[norm(p)];
+    if(!real) throw new Error('no se encontró la pestaña "'+p+'" (hay: '+wb.SheetNames.join(", ")+')');
+    return XLSX.utils.sheet_to_json(wb.Sheets[real],{header:1,raw:true,defval:""}).map(r=>r.map(x=>x==null?"":String(x)));
+  });
+}
 async function load(){
   let tabs;
   if(!CONFIG.sheetXlsxUrl){
     tabs=[[["Nombre","Valor"],...Array.from({length:34},(_,i)=>[DEMO[i%8],10])]];
-  } else {
-    const wb=await getWorkbook(), byName={};
-    wb.SheetNames.forEach(n=>byName[norm(n)]=n);
-    tabs=CONFIG.pestanas.map(p=>{
-      const real=byName[norm(p)];
-      if(!real) throw new Error('no se encontró la pestaña "'+p+'" (hay: '+wb.SheetNames.join(", ")+')');
-      return XLSX.utils.sheet_to_json(wb.Sheets[real],{header:1,raw:true,defval:""}).map(r=>r.map(x=>x==null?"":String(x)));
-    });
-  }
+  } else { tabs=await getTabs(); }
   let cnt=0,val=0,list=[];
   tabs.forEach(rows=>{
     const hd=(rows[0]||[]).map(x=>norm(x));
